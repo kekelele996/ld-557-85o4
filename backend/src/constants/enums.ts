@@ -18,6 +18,11 @@ export enum TransactionType {
   DIVIDEND = 'DIVIDEND',
 }
 
+export enum TransactionStatus {
+  ACTIVE = 'ACTIVE',
+  CANCELLED = 'CANCELLED',
+}
+
 export enum AssetStatus {
   ACTIVE = 'ACTIVE',
   SUSPENDED = 'SUSPENDED',

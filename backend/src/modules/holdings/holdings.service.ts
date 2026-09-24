@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CurrentUser } from '../../types/request';
 import { CreateHoldingDto } from './dto/create-holding.dto';
 import { MarketService } from '../market/market.service';
 import { PortfoliosService } from '../portfolios/portfolios.service';
+import { TransactionType } from '../../constants/enums';
 
 export interface HoldingRecord {
   id: number;
@@ -12,12 +13,32 @@ export interface HoldingRecord {
   avgCost: number;
   currentPrice: number;
   pnl: number;
+  initialQuantity: number;
+  initialAvgCost: number;
 }
+
+export interface ReplayTransaction {
+  type: TransactionType;
+  quantity: number;
+  price: number;
+}
+
+const FLOAT_EPSILON = 1e-9;
 
 @Injectable()
 export class HoldingsService {
   private readonly holdings: HoldingRecord[] = [
-    { id: 1, portfolioId: 1, symbol: 'AAPL', quantity: 10, avgCost: 180, currentPrice: 195.2, pnl: 152 },
+    {
+      id: 1,
+      portfolioId: 1,
+      symbol: 'AAPL',
+      quantity: 10,
+      avgCost: 180,
+      currentPrice: 195.2,
+      pnl: 152,
+      initialQuantity: 0,
+      initialAvgCost: 0,
+    },
   ];
   private nextId = 2;
 
@@ -49,6 +70,8 @@ export class HoldingsService {
       avgCost: dto.avgCost,
       currentPrice,
       pnl: (currentPrice - dto.avgCost) * dto.quantity,
+      initialQuantity: dto.quantity,
+      initialAvgCost: dto.avgCost,
     };
     this.holdings.push(holding);
     this.recomputePortfolioValue(portfolioId);
@@ -78,6 +101,37 @@ export class HoldingsService {
     return holding;
   }
 
+  /**
+   * 按剩余有效交易从初始持仓重算数量与平均成本。
+   * 先在本地副本上完整回放（dry-run），任一笔卖出可卖数量不足即抛 ConflictException，
+   * 保证持仓与组合市值不被部分修改；回放通过后才落盘并重算组合市值。
+   */
+  recomputeFromTransactions(holdingId: number, transactions: ReplayTransaction[], user: CurrentUser) {
+    const holding = this.findOwned(holdingId, user);
+
+    let quantity = holding.initialQuantity;
+    let avgCost = holding.initialAvgCost;
+    for (const transaction of transactions) {
+      if (transaction.type === TransactionType.BUY) {
+        const newQuantity = quantity + transaction.quantity;
+        avgCost = newQuantity === 0 ? avgCost : ((avgCost * quantity) + (transaction.price * transaction.quantity)) / newQuantity;
+        quantity = newQuantity;
+      }
+      if (transaction.type === TransactionType.SELL) {
+        if (transaction.quantity > quantity + FLOAT_EPSILON) {
+          throw new ConflictException('insufficient sellable quantity to revert transaction');
+        }
+        quantity = Math.max(0, quantity - transaction.quantity);
+      }
+    }
+
+    holding.quantity = Number(quantity.toFixed(6));
+    holding.avgCost = Number(avgCost.toFixed(4));
+    this.revalue(holding);
+    this.recomputePortfolioValue(holding.portfolioId);
+    return holding;
+  }
+
   private revalueAll(items: HoldingRecord[]) {
     return items.map((item) => this.revalue(item));
   }
@@ -94,4 +148,3 @@ export class HoldingsService {
     this.portfoliosService.setTotalValue(portfolioId, total);
   }
 }
-
