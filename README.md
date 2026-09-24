@@ -46,6 +46,7 @@ FinanceAPI 是面向个人投资者的纯后端 API 服务，覆盖投资组合�
 | Holding | GET/DELETE | `/api/holdings/:id` | 持仓详情、删除 |
 | Transaction | GET/POST | `/api/holdings/:holdingId/transactions` | 持仓交易 |
 | Transaction | GET | `/api/portfolios/:portfolioId/transactions` | 组合交易分页 |
+| Transaction | POST | `/api/transactions/:id/cancel` | 撤销交易并重算持仓 |
 | Market | GET | `/api/market/quote/:symbol` | 单资产行情 |
 | Market | GET | `/api/market/search?q=` | 搜索资产 |
 | Market | GET | `/api/market/history/:symbol` | 历史 K 线 |
@@ -60,8 +61,18 @@ FinanceAPI 是面向个人投资者的纯后端 API 服务，覆盖投资组合�
 | PortfolioType | `backend/src/constants/enums.ts` | `modules/portfolios/entities/portfolio.entity.ts`、`modules/portfolios/dto/create-portfolio.dto.ts`、`modules/portfolios/portfolios.service.ts`、`database/migrations/1710000000000-init-financeapi.ts`、`database/seeds/seed.ts` |
 | RiskLevel | `backend/src/constants/enums.ts` | `modules/portfolios/entities/portfolio.entity.ts`、`modules/portfolios/dto/create-portfolio.dto.ts`、`modules/portfolios/portfolios.service.ts`、`database/migrations/1710000000000-init-financeapi.ts`、`database/seeds/seed.ts` |
 | TransactionType | `backend/src/constants/enums.ts` | `modules/transactions/entities/transaction.entity.ts`、`modules/transactions/dto/create-transaction.dto.ts`、`modules/transactions/transactions.service.ts`、`database/migrations/1710000000000-init-financeapi.ts`、`database/seeds/seed.ts` |
+| TransactionStatus | `backend/src/constants/enums.ts` | `modules/transactions/entities/transaction.entity.ts`、`modules/transactions/transactions.service.ts`、`database/migrations/1720000000000-add-transaction-status.ts`、`database/seeds/seed.ts` |
 | AssetStatus | `backend/src/constants/enums.ts` | `modules/market/entities/market-data.entity.ts`、`modules/market/market.service.ts`、`database/migrations/1710000000000-init-financeapi.ts` |
 | UserRole | `backend/src/constants/enums.ts` | `modules/auth/entities/user.entity.ts`、`modules/auth/dto/register.dto.ts`、`modules/auth/strategies/jwt.strategy.ts`、`common/guards/roles.guard.ts`、`constants/permissions.ts`、`database/seeds/seed.ts` |
+
+## 交易撤销
+
+`POST /api/transactions/:id/cancel` 撤销任意一笔交易（需认证+所有者）：
+
+- 撤销后按该持仓**剩余有效交易**从初始持仓重放，重算数量、平均成本，并联动重算组合市值；重放按 `executedAt`（同刻按 id）排序。
+- 重放途中出现可卖数量不足时返回 `422`，整次撤销被拒绝：交易状态、持仓、组合市值全部保持原样。
+- 重复撤销返回 `409 Conflict`；交易不存在返回 `404`。
+- 交易记录带 `status`（`ACTIVE`/`CANCELED`）与 `canceledAt` 字段。两个交易列表接口默认只返回有效交易，加 `?status=all` 查看全部、`?status=canceled` 只看已撤销。
 
 ## RBAC 权限矩阵
 

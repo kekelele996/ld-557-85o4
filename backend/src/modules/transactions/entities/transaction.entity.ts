@@ -1,5 +1,5 @@
 import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
-import { TransactionType } from '../../../constants/enums';
+import { TransactionStatus, TransactionType } from '../../../constants/enums';
 import { Holding } from '../../holdings/entities/holding.entity';
 
 @Entity('transactions')
@@ -27,5 +27,11 @@ export class Transaction {
 
   @Column({ type: 'timestamp' })
   executedAt: Date;
+
+  @Column({ type: 'enum', enum: TransactionStatus, default: TransactionStatus.ACTIVE })
+  status: TransactionStatus;
+
+  @Column({ type: 'timestamp', nullable: true })
+  canceledAt: Date | null;
 }
 

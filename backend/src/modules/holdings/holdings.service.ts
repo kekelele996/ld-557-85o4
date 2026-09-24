@@ -10,6 +10,8 @@ export interface HoldingRecord {
   symbol: string;
   quantity: number;
   avgCost: number;
+  initialQuantity: number;
+  initialAvgCost: number;
   currentPrice: number;
   pnl: number;
 }
@@ -17,7 +19,8 @@ export interface HoldingRecord {
 @Injectable()
 export class HoldingsService {
   private readonly holdings: HoldingRecord[] = [
-    { id: 1, portfolioId: 1, symbol: 'AAPL', quantity: 10, avgCost: 180, currentPrice: 195.2, pnl: 152 },
+    // 初始持仓为 0，现有仓位由种子数据里的 BUY 10@180 交易建仓
+    { id: 1, portfolioId: 1, symbol: 'AAPL', quantity: 10, avgCost: 180, initialQuantity: 0, initialAvgCost: 0, currentPrice: 195.2, pnl: 152 },
   ];
   private nextId = 2;
 
@@ -47,6 +50,8 @@ export class HoldingsService {
       symbol: dto.symbol.toUpperCase(),
       quantity: dto.quantity,
       avgCost: dto.avgCost,
+      initialQuantity: dto.quantity,
+      initialAvgCost: dto.avgCost,
       currentPrice,
       pnl: (currentPrice - dto.avgCost) * dto.quantity,
     };
@@ -73,6 +78,16 @@ export class HoldingsService {
     if (type === 'SELL') {
       holding.quantity = Math.max(0, holding.quantity - quantity);
     }
+    this.revalue(holding);
+    this.recomputePortfolioValue(holding.portfolioId);
+    return holding;
+  }
+
+  applyRecalculated(holdingId: number, quantity: number, avgCost: number) {
+    const holding = this.holdings.find((item) => item.id === holdingId);
+    if (!holding) throw new NotFoundException('holding not found');
+    holding.quantity = quantity;
+    holding.avgCost = avgCost;
     this.revalue(holding);
     this.recomputePortfolioValue(holding.portfolioId);
     return holding;

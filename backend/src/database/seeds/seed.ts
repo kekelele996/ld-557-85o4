@@ -1,4 +1,4 @@
-import { PortfolioType, RiskLevel, TransactionType, UserRole } from '../../constants/enums';
+import { PortfolioType, RiskLevel, TransactionStatus, TransactionType, UserRole } from '../../constants/enums';
 
 export const seedData = {
   users: [
@@ -9,7 +9,7 @@ export const seedData = {
     { id: 1, userId: 1, name: '长期价值组合', type: PortfolioType.MIXED, riskLevel: RiskLevel.MODERATE },
   ],
   transactions: [
-    { holdingId: 1, type: TransactionType.BUY, quantity: 10, price: 180 },
+    { holdingId: 1, type: TransactionType.BUY, quantity: 10, price: 180, status: TransactionStatus.ACTIVE },
   ],
 };
 
